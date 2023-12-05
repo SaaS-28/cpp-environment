@@ -4,23 +4,37 @@ Write-Host "Download has started. PLEASE DO NOT USE THE KEYBOARD THROUGHOUT THE 
 $url = "https://github.com/msys2/msys2-installer/releases/download/2023-05-26/msys2-x86_64-20230526.exe"
 
 # Path of the user default download folder
-$downloadPath = "$($env:USERPROFILE)\Downloads\msys2-x86_64-20230526.exe"
+$path = "$($env:USERPROFILE)\msys2-x86_64-20230526.exe"
 
 # Create a WebClient object and Download the file
 $webClient = New-Object System.Net.WebClient
-$webClient.DownloadFile($url, $downloadPath)
-
-# MSYS2 installer path
-$installerPath = "$($env:USERPROFILE)\Downloads\msys2-x86_64-20230526.exe"
+$webClient.DownloadFile($url, $path)
 
 # Start the installation
-$installerProcess = Start-Process -FilePath $installerPath -ArgumentList "install", "--root", "C:\msys64" -PassThru
+$installerProcess = Start-Process -FilePath $path -ArgumentList "install", "--root", "C:\msys64" -PassThru
+
+# Wait for the installation window to become active
+Start-Sleep -Seconds 5  # Puoi regolare questo valore in base alle tue esigenze
+
+# Get the main window handle of the installer process
+$mainWindowHandle = $installerProcess.MainWindowHandle
+
+# Bring the installation window to the foreground
+Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class User32 {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+    }
+"@
+[User32]::SetForegroundWindow($mainWindowHandle)
 
 # Wait a short time to make sure the installation window is active
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 2
 
 # Simulate "Y" and "ENTER" input in the installation window
-Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.SendKeys]::SendWait("Y{ENTER}")
 
 # Wait for the installation process to complete
@@ -56,6 +70,7 @@ if ($currentPath -notlike "*$newPath*") {
     # Add the new path to the PATH variable
     $newPathToAdd = "$currentPath;$newPath"
     [System.Environment]::SetEnvironmentVariable("PATH", $newPathToAdd, [System.EnvironmentVariableTarget]::User)
-} else {
-    Write-Host "The path is already present in the PATH."
 }
+
+# Remove the MSYS installer
+Remove-Item -Path $path
